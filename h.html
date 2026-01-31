@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VINN GAMES - Compact Edition</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none; touch-action: manipulation;}
+body{
+  display:flex; justify-content:center; align-items:center; min-height:100vh; 
+  background-color: #000;
+  background-image: linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+  font-family: 'Segoe UI', sans-serif; color:#0ff; overflow: hidden;
+}
+
+.game-container{
+  width: 95%; max-width: 350px; padding: 15px; 
+  background: rgba(0, 5, 5, 0.95);
+  border: 2px solid #0ff; border-radius: 30px;
+  box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+}
+
+h1{ text-align:center; font-size: 20px; letter-spacing: 4px; text-shadow:0 0 10px #0ff; color: #fff; }
+
+/* Skor ditaruh di atas agar tidak tertutup */
+.top-info {
+    display: flex; justify-content: space-between;
+    margin: 10px 0; font-family: monospace; font-size: 14px;
+}
+#high { color: #f0f; text-shadow: 0 0 5px #f0f; font-weight: bold; }
+
+.status-msg { text-align: center; height: 18px; font-size: 11px; margin-bottom: 5px; font-weight: bold; }
+.msg-success { color: #0f0; } .msg-error { color: #f00; }
+
+canvas{
+  display:block; margin:0 auto; background: #000; 
+  border: 1px solid rgba(0, 255, 255, 0.4); border-radius: 15px;
+  width: 100%; height: auto; max-width: 260px;
+}
+
+#playBtn{
+  display:block; margin: 10px auto; padding: 10px 0; width: 100%; 
+  border: 1px solid #0ff; border-radius: 12px;
+  background: transparent; color:#0ff; font-weight:bold; font-size: 12px;
+  cursor:pointer; text-transform: uppercase;
+}
+
+/* Joystick Area Lebih Kecil & Rapat */
+.joystick-container {
+    margin-top: 10px; display: flex; justify-content: center;
+    align-items: center; height: 130px; position: relative;
+}
+
+.center-point { width: 8px; height: 8px; background: #0ff; border-radius: 50%; box-shadow: 0 0 10px #0ff; }
+
+.nav-box {
+    position: absolute; width: 45px; height: 45px;
+    background: rgba(0, 255, 255, 0.05); border: 1px solid #0ff;
+    border-radius: 10px; display: flex; justify-content: center; align-items: center;
+    color: #0ff; font-size: 20px; cursor: pointer;
+}
+
+.nav-box:active { background: #0ff; color: #000; transform: scale(0.9); }
+
+.up { top: 0; }
+.down { bottom: 0; }
+.left { left: 55px; }
+.right { right: 55px; }
+</style>
+</head>
+<body>
+
+<div class="game-container">
+  <h1>VINN GAMES</h1>
+  
+  <div class="top-info">
+    <div>SCORE: <span id="score">0</span></div>
+    <div>HIGH: <span id="high">0</span></div>
+  </div>
+
+  <div id="statusMsg" class="status-msg">SYSTEM READY</div>
+  
+  <canvas id="gameCanvas" width="260" height="260"></canvas>
+  
+  <button id="playBtn">START ENGINE</button>
+  
+  <div class="joystick-container">
+    <div class="nav-box up" onclick="setDir('UP')">↑</div>
+    <div class="nav-box left" onclick="setDir('LEFT')">←</div>
+    <div class="center-point"></div>
+    <div class="nav-box right" onclick="setDir('RIGHT')">→</div>
+    <div class="nav-box down" onclick="setDir('DOWN')">↓</div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const GRID = 20; 
+const SPEED = 175;
+
+let snake, dir, foods, score, gameLoop;
+let highScore = parseInt(localStorage.getItem("vinn_high_final")) || 0;
+document.getElementById("high").innerText = highScore;
+
+function init() {
+    score = 0;
+    document.getElementById("score").innerText = score;
+    dir = {x: 0, y: 0};
+    snake = [{x: 120, y: 120}, {x: 100, y: 120}, {x: 80, y: 120}];
+    foods = [];
+    for(let i=0; i<3; i++) foods.push(spawnFood());
+    draw();
+}
+
+function spawnFood() {
+    let f = {
+        x: Math.floor(Math.random() * (canvas.width / GRID)) * GRID,
+        y: Math.floor(Math.random() * (canvas.height / GRID)) * GRID
+    };
+    if (snake.some(s => s.x === f.x && s.y === f.y)) return spawnFood();
+    return f;
+}
+
+function setDir(d) {
+    if (d === 'UP' && dir.y === 0) dir = {x: 0, y: -GRID};
+    if (d === 'DOWN' && dir.y === 0) dir = {x: 0, y: GRID};
+    if (d === 'LEFT' && dir.x === 0) dir = {x: -GRID, y: 0};
+    if (d === 'RIGHT' && dir.x === 0) dir = {x: GRID, y: 0};
+}
+
+function update() {
+    if (dir.x === 0 && dir.y === 0) return;
+    const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+    if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height || 
+        snake.some(s => s.x === head.x && s.y === head.y)) {
+        clearInterval(gameLoop);
+        if(score > highScore) {
+            highScore = score;
+            localStorage.setItem("vinn_high_final", highScore);
+            document.getElementById("high").innerText = highScore;
+        }
+        alert("GAME OVER! Score: " + score);
+        init();
+        return;
+    }
+
+    snake.unshift(head);
+    let ate = false;
+    foods.forEach((f, index) => {
+        if (head.x === f.x && head.y === f.y) {
+            score += 10;
+            document.getElementById("score").innerText = score;
+            foods[index] = spawnFood();
+            ate = true;
+        }
+    });
+    if (!ate) snake.pop();
+}
+
+function draw() {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = "rgba(0, 255, 255, 0.1)";
+    for(let i=0; i<canvas.width; i+=GRID) {
+        ctx.strokeRect(i, 0, GRID, canvas.height);
+        ctx.strokeRect(0, i, canvas.width, GRID);
+    }
+
+    foods.forEach(f => {
+        ctx.shadowBlur = 10; ctx.shadowColor = "#f0f";
+        ctx.fillStyle = "#f0f";
+        ctx.fillRect(f.x + 4, f.y + 4, GRID - 8, GRID - 8);
+    });
+
+    snake.forEach((s, i) => {
+        ctx.shadowBlur = 8; ctx.shadowColor = "#0ff";
+        ctx.fillStyle = (i === 0) ? "#fff" : "#0ff";
+        ctx.fillRect(s.x + 2, s.y + 2, GRID - 4, GRID - 4);
+    });
+    ctx.shadowBlur = 0;
+}
+
+document.getElementById("playBtn").onclick = () => {
+    let statusDisplay = document.getElementById("statusMsg");
+    let logged = localStorage.getItem("vinn_auth_final");
+    
+    if(!logged) {
+        let p = prompt("ACCESS KEY:");
+        if(p === "admin") {
+            localStorage.setItem("vinn_auth_final", "true");
+            statusDisplay.innerText = "ACCESS GRANTED! WELCOME VINN";
+            statusDisplay.className = "status-msg msg-success";
+            startGame();
+        } else {
+            statusDisplay.innerText = "FUCK YOU!";
+            statusDisplay.className = "status-msg msg-error";
+            return;
+        }
+    } else {
+        startGame();
+    }
+};
+
+function startGame() {
+    init();
+    if (gameLoop) clearInterval(gameLoop);
+    gameLoop = setInterval(() => { update(); draw(); }, SPEED);
+}
+
+init();
+</script>
+</body>
+</html>
